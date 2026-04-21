@@ -1,3 +1,4 @@
+import 'dotenv/config'; // Importante para leer el archivo .env
 import express from 'express';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
@@ -6,11 +7,12 @@ import pg from 'pg';
 const app = express();
 const server = createServer(app);
 
-// 1. Configuración de Socket.io (CORS y Recuperación)
+// 1. Configuración de Socket.io (CORS corregido para Vercel)
 const io = new Server(server, {
   connectionStateRecovery: {}, 
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    // Permitimos cualquier origen para evitar el error que viste en la consola
+    origin: "*", 
     methods: ['GET', 'POST'],
     credentials: true
   }
@@ -25,13 +27,22 @@ const pool = new pg.Pool({
 });
 
 // 3. Inicialización de la Base de Datos
-await pool.query(`
-  CREATE TABLE IF NOT EXISTS messages (
-      id SERIAL PRIMARY KEY,
-      client_offset TEXT UNIQUE,
-      content TEXT
-  );
-`);
+// Usamos una función autoejecutable porque 'await' fuera de async puede dar problemas en algunas versiones
+const initDB = async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS messages (
+          id SERIAL PRIMARY KEY,
+          client_offset TEXT UNIQUE,
+          content TEXT
+      );
+    `);
+    console.log('Tabla de mensajes lista o ya existente.');
+  } catch (err) {
+    console.error('Error al crear la tabla:', err);
+  }
+};
+initDB();
 
 app.get('/', (req, res) => {
   res.send('<h1>Chatify Server Online</h1>');
@@ -73,7 +84,7 @@ io.on('connection', async (socket) => {
   });
 });
 
-// 5. UN SOLO LISTEN (Esto evita el error ERR_SERVER_ALREADY_LISTEN)
+// 5. Puerto configurado para Railway
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor corriendo en el puerto ${PORT}`);
