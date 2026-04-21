@@ -79,7 +79,10 @@ server.listen(3000, () => {
 });
 
 // prep for deployment
+// DEFINE EL PUERTO UNA SOLA VEZ
 const PORT = process.env.PORT || 3000;
+
+// ESCUCHA UNA SOLA VEZ
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`server running on port ${PORT}`);
+  console.log(`Servidor Chatify corriendo en el puerto ${PORT}`);
 });
