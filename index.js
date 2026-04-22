@@ -1,4 +1,4 @@
-import 'dotenv/config'; // Importante para leer el archivo .env
+import 'dotenv/config'; 
 import express from 'express';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
@@ -8,16 +8,14 @@ const app = express();
 const server = createServer(app);
 
 // 1. Configuración de Socket.io (CORS corregido para Vercel)
-// 1. Configuración de Socket.io (CORS corregido para Vercel)
 const io = new Server(server, {
   connectionStateRecovery: {}, 
   cors: {
-    // CAMBIO: Quita el "*" y pon tu URL de Vercel exacta
+    // Asegúrate de que esta URL sea exactamente la de tu frontend
     origin: "https://app-chatify.vercel.app", 
     methods: ['GET', 'POST'],
     credentials: true
   },
-  // Añadimos esto para asegurar que acepte la conexión
   allowEIO3: true 
 });
 
@@ -30,7 +28,6 @@ const pool = new pg.Pool({
 });
 
 // 3. Inicialización de la Base de Datos
-// Usamos una función autoejecutable porque 'await' fuera de async puede dar problemas en algunas versiones
 const initDB = async () => {
   try {
     await pool.query(`
@@ -40,9 +37,9 @@ const initDB = async () => {
           content TEXT
       );
     `);
-    console.log('Tabla de mensajes lista o ya existente.');
+    console.log('✅ Tabla de mensajes lista o ya existente.');
   } catch (err) {
-    console.error('Error al crear la tabla:', err);
+    console.error('❌ Error al crear la tabla:', err);
   }
 };
 initDB();
@@ -53,8 +50,9 @@ app.get('/', (req, res) => {
 
 // 4. Lógica de Socket.io
 io.on('connection', async (socket) => {
-  console.log('Cliente conectado:', socket.id);
+  console.log('👤 Cliente conectado:', socket.id);
 
+  // Recuperación de mensajes al conectar
   if (!socket.recovered) {
     try {
       const result = await pool.query(
@@ -66,30 +64,36 @@ io.on('connection', async (socket) => {
         socket.emit('chat message', row.content, row.id);
       }
     } catch (e) {
-      console.error('Error recuperando mensajes:', e);
+      console.error('❌ Error recuperando mensajes:', e);
     }
   }
   
+  // Escuchar mensajes nuevos
   socket.on('chat message', async (msg) => {
     try {
+      // Simplificamos el INSERT para evitar errores con client_offset si no lo usas
       const result = await pool.query(
         'INSERT INTO messages (content) VALUES ($1) RETURNING id',
         [msg]
       );
-      io.emit('chat message', msg, result.rows[0].id);
+      
+      const id = result.rows[0].id;
+      // Emitimos a todos los clientes
+      io.emit('chat message', msg, id);
+      console.log(`✉️ Mensaje guardado e id generado: ${id}`);
     } catch (e) {
-      console.error('Error insertando mensaje:', e);
+      console.error('❌ Error insertando mensaje en Postgres:', e.message);
     }
   });
 
   socket.on('disconnect', () => {
-    console.log('Cliente desconectado');
+    console.log('👤 Cliente desconectado');
   });
 });
 
 // 5. Puerto configurado para Railway
-// 5. Puerto configurado para Railway
+// Usamos process.env.PORT para que Railway asigne el puerto automáticamente (ej. 8080)
 const PORT = process.env.PORT || 8080; 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Servidor corriendo en el puerto ${PORT}`);
+  console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);
 });
