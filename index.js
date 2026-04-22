@@ -8,14 +8,17 @@ const app = express();
 const server = createServer(app);
 
 // 1. Configuración de Socket.io (CORS corregido para Vercel)
+// 1. Configuración de Socket.io (CORS corregido para Vercel)
 const io = new Server(server, {
   connectionStateRecovery: {}, 
   cors: {
-    // Permitimos cualquier origen para evitar el error que viste en la consola
-    origin: "*", 
+    // CAMBIO: Quita el "*" y pon tu URL de Vercel exacta
+    origin: "https://app-chatify.vercel.app", 
     methods: ['GET', 'POST'],
     credentials: true
-  }
+  },
+  // Añadimos esto para asegurar que acepte la conexión
+  allowEIO3: true 
 });
 
 // 2. Conexión a PostgreSQL con SSL (Necesario para Railway)
@@ -86,6 +89,6 @@ io.on('connection', async (socket) => {
 
 // 5. Puerto configurado para Railway
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, () => {
   console.log(`Servidor corriendo en el puerto ${PORT}`);
 });
