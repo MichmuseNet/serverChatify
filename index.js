@@ -69,9 +69,7 @@ io.on('connection', async (socket) => {
   
   // Recibir y guardar mensaje
   socket.on('chat message', async (msg) => {
-    // Generamos un offset único para evitar el error de "UNIQUE constraint"
     const myOffset = crypto.randomUUID(); 
-    
     try {
       const result = await pool.query(
         'INSERT INTO messages (content, client_offset) VALUES ($1, $2) RETURNING id',
@@ -79,12 +77,14 @@ io.on('connection', async (socket) => {
       );
       
       const lastId = result.rows[0].id;
-      io.emit('chat message', msg, lastId);
-      console.log(`✉️ Guardado: "${msg}" con ID: ${lastId}`);
+
+      // ESTA LÍNEA ES LA CLAVE:
+      // io.emit envía el mensaje a TODO EL MUNDO, incluido tú mismo.
+      io.emit('chat message', msg, lastId); 
+      
+      console.log(`✉️ Re-transmitiendo: ${msg}`);
     } catch (e) {
       console.error('❌ Error al insertar:', e.message);
-      // Si falla el insert, igual lo enviamos para que el chat se vea vivo
-      io.emit('chat message', msg, 'temp-' + Date.now());
     }
   });
 
