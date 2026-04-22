@@ -88,7 +88,7 @@ io.on('connection', async (socket) => {
 });
 
 // 5. Puerto configurado para Railway
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
   console.log(`Servidor corriendo en el puerto ${PORT}`);
 });
