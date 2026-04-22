@@ -3,12 +3,11 @@ import express from 'express';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import pg from 'pg';
-import crypto from 'node:crypto'; // Para generar IDs únicos
+import crypto from 'node:crypto';
 
 const app = express();
 const server = createServer(app);
 
-// 1. Configuración de Socket.io
 const io = new Server(server, {
   connectionStateRecovery: {}, 
   cors: {
@@ -19,15 +18,11 @@ const io = new Server(server, {
   allowEIO3: true 
 });
 
-// 2. Conexión a PostgreSQL
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
+  ssl: { rejectUnauthorized: false }
 });
 
-// 3. Inicialización de la Base de Datos
 const initDB = async () => {
   try {
     await pool.query(`
@@ -37,7 +32,7 @@ const initDB = async () => {
           content TEXT
       );
     `);
-    console.log('✅ Base de datos lista.');
+    console.log('✅ DB Lista');
   } catch (err) {
     console.error('❌ Error DB:', err);
   }
@@ -45,29 +40,22 @@ const initDB = async () => {
 initDB();
 
 app.get('/', (req, res) => {
-  res.send('<h1>Chatify Server Online</h1>');
+  res.send('Server Online');
 });
 
-// 4. Lógica de Socket.io
 io.on('connection', async (socket) => {
   console.log('👤 Usuario conectado');
 
-  // Recuperar mensajes antiguos al conectar
-  if (!socket.recovered) {
-    try {
-      const result = await pool.query(
-        'SELECT id, content FROM messages WHERE id > $1 ORDER BY id',
-        [socket.handshake.auth.serverOffset || 0]
-      );
-      result.rows.forEach(row => {
-        socket.emit('chat message', row.content, row.id);
-      });
-    } catch (e) {
-      console.error('❌ Error al recuperar:', e);
-    }
+  // Recuperar historial al entrar
+  try {
+    const result = await pool.query('SELECT id, content FROM messages ORDER BY id ASC');
+    result.rows.forEach(row => {
+      socket.emit('chat message', row.content, row.id);
+    });
+  } catch (e) {
+    console.error('❌ Error recuperando:', e);
   }
   
-  // Recibir y guardar mensaje
   socket.on('chat message', async (msg) => {
     const myOffset = crypto.randomUUID(); 
     try {
@@ -75,26 +63,15 @@ io.on('connection', async (socket) => {
         'INSERT INTO messages (content, client_offset) VALUES ($1, $2) RETURNING id',
         [msg, myOffset]
       );
-      
-      const lastId = result.rows[0].id;
-
-      // ESTA LÍNEA ES LA CLAVE:
-      // io.emit envía el mensaje a TODO EL MUNDO, incluido tú mismo.
-      io.emit('chat message', msg, lastId); 
-      
-      console.log(`✉️ Re-transmitiendo: ${msg}`);
+      // Gritamos el mensaje a todos (incluyéndote)
+      io.emit('chat message', msg, result.rows[0].id);
     } catch (e) {
-      console.error('❌ Error al insertar:', e.message);
+      console.error('❌ Error insertando:', e.message);
     }
-  });
-
-  socket.on('disconnect', () => {
-    console.log('👤 Usuario desconectado');
   });
 });
 
-// 5. Puerto para Railway
 const PORT = process.env.PORT || 8080; 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Servidor en puerto ${PORT}`);
+  console.log(`🚀 Server en puerto ${PORT}`);
 });
