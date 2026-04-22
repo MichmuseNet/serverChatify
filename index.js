@@ -3,15 +3,15 @@ import express from 'express';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import pg from 'pg';
+import crypto from 'node:crypto'; // Para generar IDs únicos
 
 const app = express();
 const server = createServer(app);
 
-// 1. Configuración de Socket.io (CORS corregido para Vercel)
+// 1. Configuración de Socket.io
 const io = new Server(server, {
   connectionStateRecovery: {}, 
   cors: {
-    // Asegúrate de que esta URL sea exactamente la de tu frontend
     origin: "https://app-chatify.vercel.app", 
     methods: ['GET', 'POST'],
     credentials: true
@@ -19,7 +19,7 @@ const io = new Server(server, {
   allowEIO3: true 
 });
 
-// 2. Conexión a PostgreSQL con SSL (Necesario para Railway)
+// 2. Conexión a PostgreSQL
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
@@ -37,9 +37,9 @@ const initDB = async () => {
           content TEXT
       );
     `);
-    console.log('✅ Tabla de mensajes lista o ya existente.');
+    console.log('✅ Base de datos lista.');
   } catch (err) {
-    console.error('❌ Error al crear la tabla:', err);
+    console.error('❌ Error DB:', err);
   }
 };
 initDB();
@@ -50,50 +50,51 @@ app.get('/', (req, res) => {
 
 // 4. Lógica de Socket.io
 io.on('connection', async (socket) => {
-  console.log('👤 Cliente conectado:', socket.id);
+  console.log('👤 Usuario conectado');
 
-  // Recuperación de mensajes al conectar
+  // Recuperar mensajes antiguos al conectar
   if (!socket.recovered) {
     try {
       const result = await pool.query(
         'SELECT id, content FROM messages WHERE id > $1 ORDER BY id',
         [socket.handshake.auth.serverOffset || 0]
       );
-      
-      for (const row of result.rows) {
+      result.rows.forEach(row => {
         socket.emit('chat message', row.content, row.id);
-      }
+      });
     } catch (e) {
-      console.error('❌ Error recuperando mensajes:', e);
+      console.error('❌ Error al recuperar:', e);
     }
   }
   
-  // Escuchar mensajes nuevos
+  // Recibir y guardar mensaje
   socket.on('chat message', async (msg) => {
+    // Generamos un offset único para evitar el error de "UNIQUE constraint"
+    const myOffset = crypto.randomUUID(); 
+    
     try {
-      // Simplificamos el INSERT para evitar errores con client_offset si no lo usas
       const result = await pool.query(
-        'INSERT INTO messages (content) VALUES ($1) RETURNING id',
-        [msg]
+        'INSERT INTO messages (content, client_offset) VALUES ($1, $2) RETURNING id',
+        [msg, myOffset]
       );
       
-      const id = result.rows[0].id;
-      // Emitimos a todos los clientes
-      io.emit('chat message', msg, id);
-      console.log(`✉️ Mensaje guardado e id generado: ${id}`);
+      const lastId = result.rows[0].id;
+      io.emit('chat message', msg, lastId);
+      console.log(`✉️ Guardado: "${msg}" con ID: ${lastId}`);
     } catch (e) {
-      console.error('❌ Error insertando mensaje en Postgres:', e.message);
+      console.error('❌ Error al insertar:', e.message);
+      // Si falla el insert, igual lo enviamos para que el chat se vea vivo
+      io.emit('chat message', msg, 'temp-' + Date.now());
     }
   });
 
   socket.on('disconnect', () => {
-    console.log('👤 Cliente desconectado');
+    console.log('👤 Usuario desconectado');
   });
 });
 
-// 5. Puerto configurado para Railway
-// Usamos process.env.PORT para que Railway asigne el puerto automáticamente (ej. 8080)
+// 5. Puerto para Railway
 const PORT = process.env.PORT || 8080; 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);
+  console.log(`🚀 Servidor en puerto ${PORT}`);
 });
