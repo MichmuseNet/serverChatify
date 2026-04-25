@@ -23,7 +23,6 @@ const pool = new pg.Pool({
   }
 });
 
-// Aquí guardamos los usuarios conectados
 const connectedUsers = new Map();
 
 const getUsersByRoom = (room) => {
@@ -47,9 +46,9 @@ const initDB = async () => {
       );
     `);
 
-    console.log('✅ PostgreSQL: Tabla "messages" lista con persistencia de rooms');
+    console.log('PostgreSQL: Tabla "messages" lista con persistencia de rooms');
   } catch (err) {
-    console.error('❌ Error crítico en DB:', err);
+    console.error('Error crítico en DB:', err);
   }
 };
 
@@ -64,7 +63,7 @@ io.on('connection', (socket) => {
 
   socket.on('join room', async ({ username, room }) => {
     if (!room) {
-      console.log('❌ Intento de unirse sin room');
+      console.log('Intento de unirse sin room');
       return;
     }
 
@@ -83,7 +82,7 @@ io.on('connection', (socket) => {
       room
     });
 
-    console.log(`✅ ${username || 'Anónimo'} se unió a la sala: ${room}`);
+    console.log(`${username || 'Anónimo'} se unió a la sala: ${room}`);
 
     emitUsersByRoom(room);
 
@@ -98,18 +97,18 @@ io.on('connection', (socket) => {
         [room]
       );
 
-      console.log(`📚 Historial cargado para ${room}: ${result.rows.length} mensajes`);
+      console.log(`Historial cargado para ${room}: ${result.rows.length} mensajes`);
 
       socket.emit('load messages', result.rows);
     } catch (e) {
-      console.error('❌ Error al cargar historial de sala:', e);
+      console.error('Error al cargar historial de sala:', e);
     }
   });
 
   socket.on('leave room', ({ room }) => {
     if (!room) return;
 
-    console.log(`🚪 Socket ${socket.id} abandonó la sala: ${room}`);
+    console.log(`Socket ${socket.id} abandonó la sala: ${room}`);
 
     socket.leave(room);
     connectedUsers.delete(socket.id);
@@ -118,17 +117,17 @@ io.on('connection', (socket) => {
   });
 
   socket.on('chat message', async (messageData) => {
-    console.log('📩 Mensaje recibido en server:', messageData);
+    console.log('Mensaje recibido en server:', messageData);
 
     const { content, username, room } = messageData;
 
     if (!content || content.trim() === '') {
-      console.log('⚠️ Mensaje vacío, no se guarda');
+      console.log('Mensaje vacío, no se guarda');
       return;
     }
 
     if (!room) {
-      console.log('⚠️ Mensaje sin room, no se guarda');
+      console.log('Mensaje sin room, no se guarda');
       return;
     }
 
@@ -144,11 +143,11 @@ io.on('connection', (socket) => {
 
       const savedMessage = result.rows[0];
 
-      console.log('✅ Mensaje guardado en PostgreSQL:', savedMessage);
+      console.log('Mensaje guardado en PostgreSQL:', savedMessage);
 
       io.to(room).emit('chat message', savedMessage);
     } catch (e) {
-      console.error('❌ Error al guardar mensaje:', e);
+      console.error('Error al guardar mensaje:', e);
     }
   });
 
@@ -160,13 +159,13 @@ io.on('connection', (socket) => {
       emitUsersByRoom(user.room);
     }
 
-    console.log('👤 Usuario desconectado:', socket.id, reason);
+    console.log('Usuario desconectado:', socket.id, reason);
   });
 });
 
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+  console.log(`Servidor corriendo en puerto ${PORT}`);
   console.log('Rooms disponibles: General, Tech Talk, Random, Gaming');
 });
