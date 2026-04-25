@@ -23,6 +23,18 @@ const pool = new pg.Pool({
   }
 });
 
+// Aquí guardamos los usuarios conectados
+const connectedUsers = new Map();
+
+const getUsersByRoom = (room) => {
+  return Array.from(connectedUsers.values()).filter((user) => user.room === room);
+};
+
+const emitUsersByRoom = (room) => {
+  const users = getUsersByRoom(room);
+  io.to(room).emit('room users', users);
+};
+
 const initDB = async () => {
   try {
     await pool.query(`
@@ -56,9 +68,24 @@ io.on('connection', (socket) => {
       return;
     }
 
+    const previousUser = connectedUsers.get(socket.id);
+
+    if (previousUser?.room && previousUser.room !== room) {
+      socket.leave(previousUser.room);
+      emitUsersByRoom(previousUser.room);
+    }
+
     socket.join(room);
 
+    connectedUsers.set(socket.id, {
+      id: socket.id,
+      username: username || 'Anónimo',
+      room
+    });
+
     console.log(`✅ ${username || 'Anónimo'} se unió a la sala: ${room}`);
+
+    emitUsersByRoom(room);
 
     try {
       const result = await pool.query(
@@ -83,7 +110,11 @@ io.on('connection', (socket) => {
     if (!room) return;
 
     console.log(`🚪 Socket ${socket.id} abandonó la sala: ${room}`);
+
     socket.leave(room);
+    connectedUsers.delete(socket.id);
+
+    emitUsersByRoom(room);
   });
 
   socket.on('chat message', async (messageData) => {
@@ -122,6 +153,13 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', (reason) => {
+    const user = connectedUsers.get(socket.id);
+
+    if (user) {
+      connectedUsers.delete(socket.id);
+      emitUsersByRoom(user.room);
+    }
+
     console.log('👤 Usuario desconectado:', socket.id, reason);
   });
 });
