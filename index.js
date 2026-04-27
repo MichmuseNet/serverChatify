@@ -36,6 +36,9 @@ const emitUsersByRoom = (room) => {
 
 const initDB = async () => {
   try {
+
+    // await pool.query('DROP TABLE IF EXISTS messages;'); Usar en caso de querer reiniciar la base de datos
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS messages (
         id SERIAL PRIMARY KEY,
