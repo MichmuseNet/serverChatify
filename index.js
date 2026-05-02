@@ -34,7 +34,7 @@ const emitUsersByRoom = (room) => {
 
 const initDB = async () => {
   try {
-    // TICKET 5: Creación de la tabla con soporte para historial y fecha de mensajes
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS messages (
         id SERIAL PRIMARY KEY,
@@ -67,7 +67,7 @@ io.on('connection', (socket) => {
     emitUsersByRoom(room);
 
     try {
-      // TICKET 5: Recuperamos el historial de la sala seleccionada
+    
       const result = await pool.query(
         `SELECT id, content, username, room, created_at FROM messages WHERE room = $1 ORDER BY created_at ASC`,
         [room]
@@ -82,7 +82,7 @@ io.on('connection', (socket) => {
     const { content, username, room } = messageData;
     if (!content || !room) return;
     try {
-      // TICKET 5: Guardamos el mensaje nuevo en PostgreSQL
+
       const result = await pool.query(
         `INSERT INTO messages (content, username, room) VALUES ($1, $2, $3) RETURNING *`,
         [content.trim(), username || 'Anónimo', room]
@@ -93,7 +93,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // TICKET 5: Gestión de los indicadores de escritura en tiempo real
+  
   socket.on('typing', (data) => {
     io.to(data.room).emit('user_typing', {
       username: data.username,
